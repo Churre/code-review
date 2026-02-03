@@ -1,81 +1,87 @@
 name: PR Code Review Metrics (On-demand)
-on: workflowdispatch: inputs: prurl: description: "URL del Pull Request (https://github.com/ORG/REPO/pull/123)" required: true type: string
-  legacy_repo:
-    description: "Repo legacy (ajusta umbrales M1.4/M1.5/M3.2)"
-    required: false
-    default: false
-    type: boolean
 
-  functional_pr:
-    description: "PR funcional (si es false, complejidad=5)"
-    required: false
-    default: true
-    type: boolean
+on:
+  workflow_dispatch:
+    inputs:
+      pr_url:
+        description: "URL del Pull Request (https://github.com/ORG/REPO/pull/123)"
+        required: true
+        type: string
+      legacy_repo:
+        description: "Repo legacy (ajusta umbrales M1.4/M1.5/M3.2)"
+        required: false
+        default: false
+        type: boolean
+      functional_pr:
+        description: "PR funcional (si es false, complejidad=5)"
+        required: false
+        default: true
+        type: boolean
+      post_comment:
+        description: "Publicar el reporte como comentario en el PR"
+        required: false
+        default: true
+        type: boolean
+      timezone:
+        description: "TZ IANA para horario laboral (ej: America/Santo_Domingo)"
+        required: false
+        default: "America/Santo_Domingo"
+        type: string
+      work_hours:
+        description: "Horario laboral (HH:MM-HH:MM), Lun-Vie"
+        required: false
+        default: "09:00-18:00"
+        type: string
+      morning_cutoff:
+        description: "Corte especial si el PR se cierra fuera horario (HH:MM)"
+        required: false
+        default: "07:30"
+        type: string
+      commit_regex:
+        description: "Regex (JS) para estándar de commits"
+        required: false
+        default: "^(feat|fix|chore|docs|style|refactor|test|perf|build|ci)(\\(.+\\))?: .+"
+        type: string
+      branch_regex:
+        description: "Regex (JS) para estándar de nombre de branch"
+        required: false
+        default: "^(feature|bugfix|hotfix|release)\\/[^\\s]+$"
+        type: string
+      declined_window_days:
+        description: "Ventana (días) para PRs declinados del autor (0 = solo este PR)"
+        required: false
+        default: "0"
+        type: string
 
-  post_comment:
-    description: "Publicar el reporte como comentario en el PR"
-    required: false
-    default: true
-    type: boolean
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (para traer scripts)
+        uses: actions/checkout@v4
 
-  timezone:
-    description: "TZ IANA para horario laboral (ej: America/Santo_Domingo)"
-    required: false
-    default: "America/Santo_Domingo"
-    type: string
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-  work_hours:
-    description: "Horario laboral (HH:MM-HH:MM), Lun-Vie"
-    required: false
-    default: "09:00-18:00"
-    type: string
+      - name: Run PR metrics
+        env:
+          GH_TOKEN: ${{ secrets.PR_METRICS_TOKEN }}
+          PR_URL: ${{ inputs.pr_url }}
+          LEGACY_REPO: ${{ inputs.legacy_repo }}
+          FUNCTIONAL_PR: ${{ inputs.functional_pr }}
+          POST_COMMENT: ${{ inputs.post_comment }}
+          TZ: ${{ inputs.timezone }}
+          WORK_HOURS: ${{ inputs.work_hours }}
+          MORNING_CUTOFF: ${{ inputs.morning_cutoff }}
+          COMMIT_REGEX: ${{ inputs.commit_regex }}
+          BRANCH_REGEX: ${{ inputs.branch_regex }}
+          DECLINED_WINDOW_DAYS: ${{ inputs.declined_window_days }}
+        run: node scripts/pr-metrics.mjs
 
-  morning_cutoff:
-    description: "Corte especial si el PR se cierra fuera horario (HH:MM)"
-    required: false
-    default: "07:30"
-    type: string
-
-  commit_regex:
-    description: "Regex (JS) para estándar de commits"
-    required: false
-    default: "^(feat|fix|chore|docs|style|refactor|test|perf|build|ci)(\\(.+\\))?: .+"
-    type: string
-
-  branch_regex:
-    description: "Regex (JS) para estándar de nombre de branch"
-    required: false
-    default: "^(feature|bugfix|hotfix|release)\\/[^\\s]+$"
-    type: string
-
-  declined_window_days:
-    description: "Ventana (días) para PRs declinados del autor (0 = solo este PR)"
-    required: false
-    default: "0"
-    type: string
-jobs: analyze: runs-on: ubuntu-latest steps: - name: Checkout (para traer scripts) uses: actions/checkout@v4
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: "20"
-
-  - name: Run PR metrics
-    env:
-      GH_TOKEN: ${{ secrets.PR_METRICS_TOKEN }}
-      PR_URL: ${{ inputs.pr_url }}
-      LEGACY_REPO: ${{ inputs.legacy_repo }}
-      FUNCTIONAL_PR: ${{ inputs.functional_pr }}
-      POST_COMMENT: ${{ inputs.post_comment }}
-      TZ: ${{ inputs.timezone }}
-      WORK_HOURS: ${{ inputs.work_hours }}
-      MORNING_CUTOFF: ${{ inputs.morning_cutoff }}
-      COMMIT_REGEX: ${{ inputs.commit_regex }}
-      BRANCH_REGEX: ${{ inputs.branch_regex }}
-      DECLINED_WINDOW_DAYS: ${{ inputs.declined_window_days }}
-    run: node scripts/pr-metrics.mjs
-
-  - name: Upload report artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: pr-metrics-report
-      path: output/report.md
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-metrics-report
+          path: output/report.md
