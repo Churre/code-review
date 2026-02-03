@@ -358,13 +358,43 @@ query($owner:String!, $repo:String!, $number:Int!, $after:String) {
     }
   }
 }`;
+//async function gqlAllThreads() {
+//  let after = null;
+//  let all = [];
+//  while (true) {
+//    const body = { query: gqlQuery, variables: { owner, repo, number: pull_number, after } };
+//    const { data } = await ghFetch(`${apiBase}/graphql`, { method: "POST", body });
+//    const conn = data.repository.pullRequest.reviewThreads;
+//    all.push(...conn.nodes);
+//    if (!conn.pageInfo.hasNextPage) break;
+//    after = conn.pageInfo.endCursor;
+//  }
+//  return all;
+//}
 async function gqlAllThreads() {
   let after = null;
   let all = [];
   while (true) {
     const body = { query: gqlQuery, variables: { owner, repo, number: pull_number, after } };
-    const { data } = await ghFetch(`${apiBase}/graphql`, { method: "POST", body });
-    const conn = data.repository.pullRequest.reviewThreads;
+    
+    // 1. Recibimos el cuerpo completo de la respuesta (responseBody)
+    const { data: responseBody } = await ghFetch(`${apiBase}/graphql`, { method: "POST", body });
+
+    // 2. Manejo de Errores de GraphQL (GraphQL suele devolver status 200 incluso con errores)
+    if (responseBody.errors) {
+      console.error("❌ Error devuelto por GraphQL:", JSON.stringify(responseBody.errors, null, 2));
+      throw new Error(`GraphQL Error: ${responseBody.errors[0].message}`);
+    }
+
+    // 3. Validación de estructura (responseBody.data.repository)
+    if (!responseBody.data || !responseBody.data.repository) {
+      console.error("❌ Respuesta inesperada (data o repository es null):", JSON.stringify(responseBody, null, 2));
+      throw new Error("No se pudo acceder al repositorio mediante GraphQL. Verifica permisos del token.");
+    }
+
+    // 4. Acceso correcto a la propiedad anidada
+    const conn = responseBody.data.repository.pullRequest.reviewThreads;
+    
     all.push(...conn.nodes);
     if (!conn.pageInfo.hasNextPage) break;
     after = conn.pageInfo.endCursor;
